@@ -22,7 +22,8 @@ RUN set -xe; \
         > /etc/apt/sources.list.d/timescaledb.list; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-        "timescaledb-2-postgresql-${PG_MAJOR}=${TIMESCALE_VERSION}.*"; \
+        "timescaledb-2-postgresql-${PG_MAJOR}=${TIMESCALE_VERSION}.*" \
+        "timescaledb-2-loader-postgresql-${PG_MAJOR}=${TIMESCALE_VERSION}.*"; \
     apt-get purge -y --auto-remove curl gnupg lsb-release; \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
