@@ -6,15 +6,20 @@ it drops directly into a CNPG `Cluster` resource.
 
 ## Image
 
+Published to two registries, same digest:
+
 ```
-registry.digitalocean.com/jar-containers/cnpg-timescaledb:<pg_major>-ts<timescale_version>
+ghcr.io/joyautomation/cnpg-timescaledb:<pg_major>-ts<timescale_version>                    # public, no pull secret
+registry.digitalocean.com/jar-containers/cnpg-timescaledb:<pg_major>-ts<timescale_version>  # private (jar-containers)
 ```
 
 Tag examples (immutable variants are produced for every build):
 
-- `17-ts2.25` — rolling tag, latest weekly rebuild
-- `17-ts2.25-20260506` — date-stamped immutable
-- `17-ts2.25-20260506-<git_sha>` — fully pinned
+- `17-ts2.31` — rolling tag, latest weekly rebuild
+- `17-ts2.31-20261112` — date-stamped
+- `17-ts2.31-20261112-<git_sha>` — fully pinned (pin by digest in production)
+
+Older `17-ts2.25*` tags stay in the DO registry; existing clusters pinned to them are unaffected.
 
 ## Usage in a CNPG `Cluster`
 
@@ -24,7 +29,7 @@ kind: Cluster
 metadata:
   name: timescale
 spec:
-  imageName: registry.digitalocean.com/jar-containers/cnpg-timescaledb:17-ts2.25
+  imageName: ghcr.io/joyautomation/cnpg-timescaledb:17-ts2.31
   postgresql:
     parameters:
       shared_preload_libraries: "timescaledb"
@@ -47,13 +52,17 @@ upstream CNPG image to pick up Postgres minor patches and TimescaleDB point
 releases. To force a build with different versions, run the workflow manually:
 
 ```
-gh workflow run build.yml -f pg_major=17 -f timescale_version=2.25
+gh workflow run build.yml -f pg_major=17 -f timescale_version=2.31
 ```
 
 ### Required repository secret
 
 - `DIGITALOCEAN_ACCESS_TOKEN` — DO API token with read/write access to the
-  `jar-containers` container registry.
+  `jar-containers` container registry. GHCR uses the workflow's own `GITHUB_TOKEN`.
+
+GitHub disables scheduled workflows after 60 days without repository activity (this
+one stopped on 2026-07-06). Check with `gh workflow list --all`; re-enable with
+`gh workflow enable build.yml`.
 
 ## Why DIY
 

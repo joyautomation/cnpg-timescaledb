@@ -14,19 +14,22 @@ on:
         default: "17"
       timescale_version:
         description: "TimescaleDB version (e.g. 2.25)"
-        default: "2.25"
+        default: "2.31"
 
 env:
   REGISTRY: registry.digitalocean.com/jar-containers
+  # Public mirror of the same image: no pull secret needed (customer sites pull from here)
+  GHCR: ghcr.io/joyautomation
   IMAGE_NAME: cnpg-timescaledb
   PG_MAJOR: ${{ github.event.inputs.pg_major || '17' }}
-  TIMESCALE_VERSION: ${{ github.event.inputs.timescale_version || '2.25' }}
+  TIMESCALE_VERSION: ${{ github.event.inputs.timescale_version || '2.31' }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -38,6 +41,13 @@ jobs:
           registry: registry.digitalocean.com
           username: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
           password: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Resolve build date
         id: date
@@ -51,7 +61,13 @@ jobs:
           build-args: |
             PG_MAJOR=${{ env.PG_MAJOR }}
             TIMESCALE_VERSION=${{ env.TIMESCALE_VERSION }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=CloudNativePG PostgreSQL ${{ env.PG_MAJOR }} + TimescaleDB ${{ env.TIMESCALE_VERSION }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.PG_MAJOR }}-ts${{ env.TIMESCALE_VERSION }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.PG_MAJOR }}-ts${{ env.TIMESCALE_VERSION }}-${{ steps.date.outputs.value }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.PG_MAJOR }}-ts${{ env.TIMESCALE_VERSION }}-${{ steps.date.outputs.value }}-${{ github.sha }}
+            ${{ env.GHCR }}/${{ env.IMAGE_NAME }}:${{ env.PG_MAJOR }}-ts${{ env.TIMESCALE_VERSION }}
+            ${{ env.GHCR }}/${{ env.IMAGE_NAME }}:${{ env.PG_MAJOR }}-ts${{ env.TIMESCALE_VERSION }}-${{ steps.date.outputs.value }}
+            ${{ env.GHCR }}/${{ env.IMAGE_NAME }}:${{ env.PG_MAJOR }}-ts${{ env.TIMESCALE_VERSION }}-${{ steps.date.outputs.value }}-${{ github.sha }}

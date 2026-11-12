@@ -4,7 +4,7 @@ ARG BASE_TAG=${PG_MAJOR}-bookworm
 FROM ghcr.io/cloudnative-pg/postgresql:${BASE_TAG}
 
 ARG PG_MAJOR=17
-ARG TIMESCALE_VERSION=2.25
+ARG TIMESCALE_VERSION=2.31
 
 USER root
 
