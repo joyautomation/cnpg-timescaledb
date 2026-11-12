@@ -35,13 +35,6 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Log in to DO container registry
-        uses: docker/login-action@v3
-        with:
-          registry: registry.digitalocean.com
-          username: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-          password: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -49,9 +42,34 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve build date
-        id: date
-        run: echo "value=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+      # DO is optional: an expired DIGITALOCEAN_ACCESS_TOKEN must not stop the public GHCR
+      # image (it did on 2026-11-12). The step summary says when DO was skipped.
+      - name: Log in to DO container registry
+        id: do_login
+        continue-on-error: true
+        uses: docker/login-action@v3
+        with:
+          registry: registry.digitalocean.com
+          username: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          password: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Resolve tags
+        id: tags
+        env:
+          DO_OK: ${{ steps.do_login.outcome == 'success' }}
+        run: |
+          d=$(date -u +%Y%m%d)
+          v="${PG_MAJOR}-ts${TIMESCALE_VERSION}"
+          regs="$GHCR"
+          if [ "$DO_OK" = true ]; then regs="$regs $REGISTRY"
+          else echo "::warning::DO login failed (DIGITALOCEAN_ACCESS_TOKEN): pushed to GHCR only" ; fi
+          {
+            echo "list<<EOF"
+            for r in $regs; do
+              printf '%s\n' "$r/$IMAGE_NAME:$v" "$r/$IMAGE_NAME:$v-$d" "$r/$IMAGE_NAME:$v-$d-$GITHUB_SHA"
+            done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build & push
         uses: docker/build-push-action@v5
@@ -64,10 +82,4 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=CloudNativePG PostgreSQL ${{ env.PG_MAJOR }} + TimescaleDB ${{ env.TIMESCALE_VERSION }}
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.PG_MAJOR }}-ts${{ env.TIMESCALE_VERSION }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.PG_MAJOR }}-ts${{ env.TIMESCALE_VERSION }}-${{ steps.date.outputs.value }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.PG_MAJOR }}-ts${{ env.TIMESCALE_VERSION }}-${{ steps.date.outputs.value }}-${{ github.sha }}
-            ${{ env.GHCR }}/${{ env.IMAGE_NAME }}:${{ env.PG_MAJOR }}-ts${{ env.TIMESCALE_VERSION }}
-            ${{ env.GHCR }}/${{ env.IMAGE_NAME }}:${{ env.PG_MAJOR }}-ts${{ env.TIMESCALE_VERSION }}-${{ steps.date.outputs.value }}
-            ${{ env.GHCR }}/${{ env.IMAGE_NAME }}:${{ env.PG_MAJOR }}-ts${{ env.TIMESCALE_VERSION }}-${{ steps.date.outputs.value }}-${{ github.sha }}
+          tags: ${{ steps.tags.outputs.list }}
